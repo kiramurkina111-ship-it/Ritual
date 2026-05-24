@@ -41,42 +41,6 @@ function parseEtherLocal(value) {
   return BigInt(whole) * ETH + BigInt(padded);
 }
 
-const demoTokens = [
-  {
-    token: "demo-1",
-    name: "Green Sigil",
-    symbol: "SIGIL",
-    description: "A neon ritual for builders who launch before the chain gets crowded.",
-    imageURI: "",
-    omen: "The machine altar detects builder energy and a suspiciously loud group chat.",
-    soldTokens: 4200n,
-    ritualReserve: parseEtherLocal("1.73"),
-    vibeScore: 87n,
-  },
-  {
-    token: "demo-2",
-    name: "Agent Flame",
-    symbol: "AGENT",
-    description: "A tiny autonomous spark for contracts that think, act, and refuse to sleep.",
-    imageURI: "",
-    omen: "A slow green flame. Not explosive, but it keeps scheduling itself.",
-    soldTokens: 1337n,
-    ritualReserve: parseEtherLocal("0.66"),
-    vibeScore: 64n,
-  },
-  {
-    token: "demo-3",
-    name: "TEE Hex",
-    symbol: "TEE",
-    description: "For terminal dwellers who like their memes with attested compute.",
-    imageURI: "",
-    omen: "Green text appears. Someone whispers that liquidity is a belief system.",
-    soldTokens: 9001n,
-    ritualReserve: parseEtherLocal("4.20"),
-    vibeScore: 92n,
-  },
-];
-
 const state = {
   provider: null,
   signer: null,
@@ -140,6 +104,13 @@ function toast(message) {
   els.toast.classList.add("is-visible");
   window.clearTimeout(toast.timer);
   toast.timer = window.setTimeout(() => els.toast.classList.remove("is-visible"), 4200);
+}
+
+function configureFounderSetup() {
+  const params = new URLSearchParams(window.location.search);
+  const showSetup = params.get("setup") === "1";
+  document.body.classList.toggle("show-founder-setup", showSetup);
+  document.getElementById("setup")?.setAttribute("aria-hidden", showSetup ? "false" : "true");
 }
 
 function hashText(value) {
@@ -220,21 +191,22 @@ async function ensureRitualNetwork() {
 }
 
 function bindFactory() {
-  if (isAddress(state.factoryAddress) && state.provider && hasEthers()) {
-    const runner = state.signer || state.provider;
+  els.factoryInput.value = state.factoryAddress || "";
+  if (isAddress(state.factoryAddress) && hasEthers()) {
+    const runner =
+      state.signer || state.provider || new window.ethers.JsonRpcProvider(RITUAL_CHAIN.rpcUrls[0]);
     state.factory = new window.ethers.Contract(state.factoryAddress, FACTORY_ABI, runner);
     els.factoryStatus.textContent = shortAddress(state.factoryAddress);
-    els.factoryInput.value = state.factoryAddress;
   } else {
     state.factory = null;
-    els.factoryStatus.textContent = "Demo mode";
+    els.factoryStatus.textContent = isAddress(state.factoryAddress) ? "Connect wallet" : "Not configured";
   }
 }
 
 async function refresh() {
   bindFactory();
   if (!state.factory) {
-    state.tokens = demoTokens;
+    state.tokens = [];
     els.launchFee.textContent = "0.01 RITUAL";
     renderTokens();
     return;
@@ -451,7 +423,10 @@ function getTokenImageURI() {
 
 function renderTokens() {
   if (!state.tokens.length) {
-    els.tokenGrid.innerHTML = `<div class="panel">No tokens yet. Be the first to summon one.</div>`;
+    const message = state.factory
+      ? "No tokens launched yet. Be the first to summon one."
+      : "Connect your wallet to read the Ritual PumpPad factory.";
+    els.tokenGrid.innerHTML = `<div class="panel empty-market">${message}</div>`;
     return;
   }
 
@@ -496,7 +471,7 @@ function escapeHtml(value) {
 async function launchToken(event) {
   event.preventDefault();
   if (!state.factory) {
-    toast("Demo mode is active. Deploy the factory and save its address first.");
+    toast("Connect your wallet first so the app can read the Ritual PumpPad factory.");
     return;
   }
   if (!state.signer) {
@@ -526,7 +501,7 @@ async function trade(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   if (!state.factory) {
-    toast("This is demo mode. Save a deployed factory address to trade on-chain.");
+    toast("Connect your wallet first so the app can read the Ritual PumpPad factory.");
     return;
   }
   if (!state.signer) {
@@ -585,7 +560,7 @@ function clearFactoryAddress() {
   localStorage.removeItem("ritualPumpPadFactory");
   bindFactory();
   refresh();
-  toast("Demo mode restored.");
+  toast("Factory override cleared.");
 }
 
 els.walletButton.addEventListener("click", connectWallet);
@@ -613,5 +588,6 @@ if (window.ethereum) {
 }
 
 bindFactory();
+configureFounderSetup();
 generateOmen();
 refresh();

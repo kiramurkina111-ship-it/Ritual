@@ -747,6 +747,14 @@ textarea:focus {
   gap: 10px;
 }
 
+.setup-section {
+  display: none;
+}
+
+body.show-founder-setup .setup-section {
+  display: block;
+}
+
 .link-button {
   margin-top: 12px;
   border: 0;
