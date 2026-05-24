@@ -8,6 +8,9 @@ const RITUAL_CHAIN = {
 
 const FACTORY_ABI = [
   "function launchFee() view returns (uint256)",
+  "function basePrice() view returns (uint256)",
+  "function slope() view returns (uint256)",
+  "function tradeFeeBps() view returns (uint256)",
   "function createToken(string name,string symbol,string description,string imageURI,string omen) payable returns (address)",
   "function buy(address token,uint256 wholeTokens) payable",
   "function sell(address token,uint256 wholeTokens)",
@@ -34,6 +37,7 @@ const ETH = 10n ** 18n;
 const MAX_UPLOAD_IMAGE_BYTES = 180 * 1024;
 const MAX_DATA_URL_IMAGE_BYTES = 12 * 1024;
 const IMAGE_SIZE = 512;
+const MAX_WHOLE_TOKENS = 1_000_000n;
 
 function parseEtherLocal(value) {
   const [whole, fraction = ""] = value.split(".");
@@ -51,6 +55,14 @@ const state = {
     window.RITUAL_PUMPPAD_CONFIG?.factoryAddress ||
     "",
   uploadedImageURI: "",
+  uploadedImagePending: false,
+  selectedToken: null,
+  tradeMode: "buy",
+  curve: {
+    basePrice: parseEtherLocal("0.00000001"),
+    slope: parseEtherLocal("0.00000000001"),
+    tradeFeeBps: 100n,
+  },
   tokens: [],
 };
 
@@ -81,6 +93,20 @@ const els = {
   factoryInput: $("factoryInput"),
   saveFactoryButton: $("saveFactoryButton"),
   clearFactoryButton: $("clearFactoryButton"),
+  tokenModal: $("tokenModal"),
+  modalTokenArt: $("modalTokenArt"),
+  modalChart: $("modalChart"),
+  modalTokenName: $("modalTokenName"),
+  modalTokenDescription: $("modalTokenDescription"),
+  modalTokenPrice: $("modalTokenPrice"),
+  modalMarketCap: $("modalMarketCap"),
+  modalSold: $("modalSold"),
+  modalReserve: $("modalReserve"),
+  modalBuyTab: $("modalBuyTab"),
+  modalSellTab: $("modalSellTab"),
+  modalTradeAmount: $("modalTradeAmount"),
+  modalTradeQuote: $("modalTradeQuote"),
+  modalTradeButton: $("modalTradeButton"),
   toast: $("toast"),
 };
 
@@ -213,7 +239,17 @@ async function refresh() {
   }
 
   try {
-    const fee = await state.factory.launchFee();
+    const [fee, basePrice, slope, tradeFeeBps] = await Promise.all([
+      state.factory.launchFee(),
+      state.factory.basePrice(),
+      state.factory.slope(),
+      state.factory.tradeFeeBps(),
+    ]);
+    state.curve = {
+      basePrice,
+      slope,
+      tradeFeeBps,
+    };
     els.launchFee.textContent = `${formatEth(fee)} RITUAL`;
     const addresses = await state.factory.getTokens();
     const infos = await Promise.all(
@@ -260,12 +296,52 @@ function formatEth(value) {
   });
 }
 
+function formatRitual(value, maxDigits = 8) {
+  const formatted = hasEthers()
+    ? window.ethers.formatEther(value)
+    : `${value / ETH}.${String(value % ETH).padStart(18, "0")}`;
+  const number = Number(formatted);
+  if (!Number.isFinite(number)) return "0 RITUAL";
+  return `${number.toLocaleString(undefined, { maximumFractionDigits: maxDigits })} RITUAL`;
+}
+
+function priceAtSold(soldTokens) {
+  return state.curve.basePrice + BigInt(soldTokens) * state.curve.slope;
+}
+
+function buyPriceWithFee(soldTokens, wholeTokens = 1n) {
+  const amount = BigInt(wholeTokens);
+  const linear = amount * state.curve.basePrice;
+  const first = BigInt(soldTokens) * amount;
+  const triangle = (amount * (amount - 1n)) / 2n;
+  const cost = linear + (first + triangle) * state.curve.slope;
+  const fee = (cost * state.curve.tradeFeeBps) / 10_000n;
+  return cost + fee;
+}
+
+function tokenPrice(token) {
+  return buyPriceWithFee(token.soldTokens || 0n, 1n);
+}
+
+function marketCap(token) {
+  return tokenPrice(token) * MAX_WHOLE_TOKENS;
+}
+
+function imageSrc(uri) {
+  if (!uri) return "";
+  if (uri.startsWith("ipfs://")) {
+    return `https://gateway.pinata.cloud/ipfs/${uri.replace("ipfs://", "")}`;
+  }
+  if (uri.startsWith("http") || uri.startsWith("data:image/")) {
+    return uri;
+  }
+  return "";
+}
+
 function tokenArt(token) {
-  if (
-    token.imageURI &&
-    (token.imageURI.startsWith("http") || token.imageURI.startsWith("data:image/"))
-  ) {
-    return `<img src="${escapeHtml(token.imageURI)}" alt="${escapeHtml(token.name)} token art" />`;
+  const src = imageSrc(token.imageURI);
+  if (src) {
+    return `<img src="${escapeHtml(src)}" alt="${escapeHtml(token.name)} token art" loading="lazy" />`;
   }
   return `<span>${escapeHtml(token.symbol.slice(0, 5))}</span>`;
 }
@@ -387,14 +463,17 @@ async function handleImageUpload(event) {
     if (!imageURI) {
       if (compressed.bytes > MAX_DATA_URL_IMAGE_BYTES) {
         state.uploadedImageURI = "";
+        state.uploadedImagePending = true;
         els.imagePreview.innerHTML = `<img src="${compressed.dataURL}" alt="Uploaded token preview" />`;
         toast("Preview ready, but public upload is not configured. Use an image URL or set PINATA_JWT on Vercel.");
         return;
       }
+      state.uploadedImagePending = true;
       imageURI = compressed.dataURL;
     }
 
     state.uploadedImageURI = imageURI;
+    state.uploadedImagePending = false;
     els.tokenImage.value = "";
     els.imagePreview.innerHTML = `<img src="${compressed.dataURL}" alt="Uploaded token preview" />`;
     toast(
@@ -410,6 +489,7 @@ async function handleImageUpload(event) {
 
 function clearUploadedImage(showToast = true) {
   state.uploadedImageURI = "";
+  state.uploadedImagePending = false;
   els.tokenImageFile.value = "";
   els.imagePreview.innerHTML = `<span>No uploaded image</span>`;
   if (showToast) {
@@ -444,9 +524,8 @@ function renderTokens() {
           </div>
           <p>${escapeHtml(token.description || token.omen)}</p>
           <div class="token-meta">
-            <span><strong>${Number(token.soldTokens).toLocaleString()}</strong> sold</span>
-            <span><strong>${formatEth(token.ritualReserve)}</strong> RITUAL</span>
-            <span><strong>${state.factory ? "live" : "demo"}</strong> mode</span>
+            <span><strong>${formatRitual(tokenPrice(token))}</strong> Token price</span>
+            <span><strong>${formatRitual(marketCap(token), 2)}</strong> Market cap</span>
           </div>
           <div class="trade-box">
             <input inputmode="numeric" min="1" step="1" value="100" aria-label="Whole tokens" />
@@ -457,6 +536,84 @@ function renderTokens() {
       `,
     )
     .join("");
+}
+
+function findToken(address) {
+  return state.tokens.find((token) => token.token.toLowerCase() === address.toLowerCase());
+}
+
+function chartSvg(token) {
+  const width = 640;
+  const height = 260;
+  const pad = 30;
+  const sold = BigInt(token.soldTokens || 0n);
+  const maxX = sold > 0n ? sold * 2n : 10_000n;
+  const cappedMaxX = maxX > MAX_WHOLE_TOKENS ? MAX_WHOLE_TOKENS : maxX;
+  const maxY = priceAtSold(cappedMaxX);
+  const points = [];
+  for (let i = 0; i <= 32; i += 1) {
+    const xTokens = (cappedMaxX * BigInt(i)) / 32n;
+    const price = priceAtSold(xTokens);
+    const x = pad + (Number(xTokens) / Number(cappedMaxX || 1n)) * (width - pad * 2);
+    const y = height - pad - (Number(price) / Number(maxY || 1n)) * (height - pad * 2);
+    points.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+  }
+  const soldX = pad + (Number(sold) / Number(cappedMaxX || 1n)) * (width - pad * 2);
+  return `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Bonding curve price chart">
+      <path class="chart-grid" d="M${pad} ${height - pad}H${width - pad}M${pad} ${pad}V${height - pad}" />
+      <polyline class="chart-line" points="${points.join(" ")}" />
+      <line class="chart-marker" x1="${soldX}" x2="${soldX}" y1="${pad}" y2="${height - pad}" />
+      <text x="${pad}" y="20">Bonding curve</text>
+      <text x="${width - pad}" y="${height - 8}" text-anchor="end">${Number(sold).toLocaleString()} sold</text>
+    </svg>
+  `;
+}
+
+function setModalMode(mode) {
+  state.tradeMode = mode;
+  els.modalBuyTab.classList.toggle("is-active", mode === "buy");
+  els.modalSellTab.classList.toggle("is-active", mode === "sell");
+  els.modalTradeButton.textContent = mode === "buy" ? "Buy token" : "Sell token";
+  updateModalQuote();
+}
+
+async function updateModalQuote() {
+  if (!state.selectedToken) return;
+  const amount = BigInt(Math.max(1, Number.parseInt(els.modalTradeAmount.value, 10) || 1));
+  try {
+    if (state.factory && state.tradeMode === "buy") {
+      const [total] = await state.factory.quoteBuy(state.selectedToken.token, amount);
+      els.modalTradeQuote.textContent = `Estimated cost: ${formatRitual(total)} for ${amount.toLocaleString()} token(s).`;
+    } else if (state.factory) {
+      const [payout] = await state.factory.quoteSell(state.selectedToken.token, amount);
+      els.modalTradeQuote.textContent = `Estimated receive: ${formatRitual(payout)} for ${amount.toLocaleString()} token(s).`;
+    }
+  } catch {
+    els.modalTradeQuote.textContent = "This amount is not available for the current curve state.";
+  }
+}
+
+function openTokenModal(token) {
+  state.selectedToken = token;
+  els.modalTokenArt.innerHTML = tokenArt(token);
+  els.modalChart.innerHTML = chartSvg(token);
+  els.modalTokenName.textContent = `${token.name} ($${token.symbol})`;
+  els.modalTokenDescription.textContent = token.description || token.omen || "";
+  els.modalTokenPrice.textContent = formatRitual(tokenPrice(token));
+  els.modalMarketCap.textContent = formatRitual(marketCap(token), 2);
+  els.modalSold.textContent = Number(token.soldTokens).toLocaleString();
+  els.modalReserve.textContent = formatRitual(token.ritualReserve);
+  els.modalTradeAmount.value = "100";
+  setModalMode("buy");
+  els.tokenModal.classList.add("is-open");
+  els.tokenModal.setAttribute("aria-hidden", "false");
+}
+
+function closeTokenModal() {
+  els.tokenModal.classList.remove("is-open");
+  els.tokenModal.setAttribute("aria-hidden", "true");
+  state.selectedToken = null;
 }
 
 function escapeHtml(value) {
@@ -470,6 +627,10 @@ function escapeHtml(value) {
 
 async function launchToken(event) {
   event.preventDefault();
+  if (state.uploadedImagePending) {
+    toast("The selected image is only a preview. Configure IPFS upload or choose a smaller image before launch.");
+    return;
+  }
   if (!state.factory) {
     toast("Connect your wallet first so the app can read the Ritual PumpPad factory.");
     return;
@@ -497,9 +658,7 @@ async function launchToken(event) {
   await refresh();
 }
 
-async function trade(event) {
-  const button = event.target.closest("button[data-action]");
-  if (!button) return;
+async function executeTrade(token, amount, action) {
   if (!state.factory) {
     toast("Connect your wallet first so the app can read the Ritual PumpPad factory.");
     return;
@@ -507,12 +666,6 @@ async function trade(event) {
   if (!state.signer) {
     await connectWallet();
   }
-
-  const card = button.closest(".token-card");
-  const token = card.dataset.token;
-  const input = card.querySelector("input");
-  const amount = BigInt(Math.max(1, Number.parseInt(input.value, 10) || 1));
-  const action = button.dataset.action;
 
   try {
     if (action === "buy") {
@@ -536,10 +689,32 @@ async function trade(event) {
       toast("Sell confirmed.");
     }
     await refresh();
+    if (state.selectedToken) {
+      const freshToken = findToken(token);
+      if (freshToken) openTokenModal(freshToken);
+    }
   } catch (error) {
     console.error(error);
     toast(error.shortMessage || "Transaction failed or was rejected.");
   }
+}
+
+async function trade(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const card = button.closest(".token-card");
+  const token = card.dataset.token;
+  const input = card.querySelector("input");
+  const amount = BigInt(Math.max(1, Number.parseInt(input.value, 10) || 1));
+  await executeTrade(token, amount, button.dataset.action);
+}
+
+function handleTokenGridClick(event) {
+  if (event.target.closest("button, input, a")) return;
+  const card = event.target.closest(".token-card");
+  if (!card) return;
+  const token = findToken(card.dataset.token);
+  if (token) openTokenModal(token);
 }
 
 function saveFactoryAddress() {
@@ -575,7 +750,22 @@ els.tokenImage.addEventListener("input", () => {
     clearUploadedImage(false);
   }
 });
+els.tokenGrid.addEventListener("click", handleTokenGridClick);
 els.tokenGrid.addEventListener("click", trade);
+els.tokenModal.addEventListener("click", (event) => {
+  if (event.target.closest("[data-close-modal]")) closeTokenModal();
+});
+els.modalBuyTab.addEventListener("click", () => setModalMode("buy"));
+els.modalSellTab.addEventListener("click", () => setModalMode("sell"));
+els.modalTradeAmount.addEventListener("input", updateModalQuote);
+els.modalTradeButton.addEventListener("click", async () => {
+  if (!state.selectedToken) return;
+  const amount = BigInt(Math.max(1, Number.parseInt(els.modalTradeAmount.value, 10) || 1));
+  await executeTrade(state.selectedToken.token, amount, state.tradeMode);
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeTokenModal();
+});
 ["input", "change"].forEach((eventName) => {
   [els.tokenName, els.tokenSymbol, els.tokenDescription].forEach((input) => {
     input.addEventListener(eventName, generateOmen);

@@ -664,6 +664,15 @@ textarea:focus {
   display: grid;
   gap: 14px;
   padding: 16px;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.token-card:hover {
+  border-color: rgba(80, 245, 150, 0.42);
+  transform: translateY(-2px);
 }
 
 .token-art {
@@ -716,7 +725,7 @@ textarea:focus {
 
 .token-meta {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   font-size: 13px;
 }
@@ -739,6 +748,197 @@ textarea:focus {
 
 .trade-box button {
   min-width: 68px;
+}
+
+.token-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.token-modal.is-open {
+  display: flex;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.modal-panel {
+  position: relative;
+  width: min(1040px, 100%);
+  max-height: min(860px, calc(100vh - 32px));
+  overflow: auto;
+  border: 1px solid rgba(80, 245, 150, 0.28);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(80, 245, 150, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 245, 150, 0.045) 1px, transparent 1px),
+    rgba(5, 7, 5, 0.98);
+  background-size: 28px 28px;
+  box-shadow: 0 30px 120px rgba(0, 0, 0, 0.65);
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  min-height: 38px;
+  border: 1px solid rgba(80, 245, 150, 0.28);
+  border-radius: 6px;
+  color: var(--green);
+  background: rgba(0, 0, 0, 0.48);
+  cursor: pointer;
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  gap: 20px;
+  padding: 24px;
+}
+
+.modal-art {
+  display: grid;
+  min-height: 280px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(80, 245, 150, 0.05);
+}
+
+.modal-art img {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  object-fit: cover;
+}
+
+.modal-art span {
+  font-size: 44px;
+  font-weight: 950;
+}
+
+.modal-chart {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.modal-chart svg {
+  display: block;
+  width: 100%;
+}
+
+.modal-chart text {
+  fill: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chart-grid {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 10px rgba(80, 245, 150, 0.48));
+}
+
+.chart-marker {
+  stroke: var(--white);
+  stroke-dasharray: 5 7;
+  stroke-width: 2;
+}
+
+.modal-content {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.modal-content h2 {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.modal-content p {
+  color: #d4dcd3;
+  line-height: 1.55;
+}
+
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.detail-stats span {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 13px;
+}
+
+.detail-stats strong {
+  display: block;
+  color: var(--text);
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.trade-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(80, 245, 150, 0.04);
+}
+
+.trade-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.trade-tabs button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.trade-tabs button.is-active {
+  color: var(--ink);
+  background: var(--green);
+}
+
+#modalTradeQuote {
+  min-height: 24px;
+  margin-bottom: 0;
+  color: var(--muted);
 }
 
 .setup-row {
@@ -798,7 +998,8 @@ code {
   .hero,
   .workbench,
   .status-grid,
-  .token-grid {
+  .token-grid,
+  .modal-grid {
     grid-template-columns: 1fr;
   }
 
@@ -840,5 +1041,13 @@ code {
 
   .token-meta {
     grid-template-columns: 1fr;
+  }
+
+  .detail-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .token-modal {
+    padding: 10px;
   }
 }

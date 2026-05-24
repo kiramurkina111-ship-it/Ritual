@@ -198,6 +198,42 @@
         </section>
       </main>
 
+      <div class="token-modal" id="tokenModal" aria-hidden="true">
+        <div class="modal-backdrop" data-close-modal></div>
+        <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTokenName">
+          <button class="modal-close" type="button" data-close-modal>Close</button>
+          <div class="modal-grid">
+            <div>
+              <div class="modal-art" id="modalTokenArt"></div>
+              <div class="modal-chart" id="modalChart"></div>
+            </div>
+            <div class="modal-content">
+              <p class="eyebrow">Token terminal</p>
+              <h2 id="modalTokenName">Token</h2>
+              <p id="modalTokenDescription"></p>
+              <div class="detail-stats">
+                <span><strong id="modalTokenPrice">0</strong> Token price</span>
+                <span><strong id="modalMarketCap">0</strong> Market cap</span>
+                <span><strong id="modalSold">0</strong> Tokens sold</span>
+                <span><strong id="modalReserve">0</strong> RITUAL reserve</span>
+              </div>
+              <div class="trade-panel">
+                <div class="trade-tabs" role="tablist" aria-label="Trade mode">
+                  <button class="is-active" id="modalBuyTab" type="button" data-modal-mode="buy">Buy</button>
+                  <button id="modalSellTab" type="button" data-modal-mode="sell">Sell</button>
+                </div>
+                <label>
+                  Amount
+                  <input id="modalTradeAmount" inputmode="numeric" min="1" step="1" value="100" />
+                </label>
+                <p id="modalTradeQuote">Choose an amount to preview the trade.</p>
+                <button class="primary-button" id="modalTradeButton" type="button">Buy token</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
     </div>
 
