@@ -392,21 +392,6 @@ h2 {
   color: var(--white);
 }
 
-.ticker-tape {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  left: 18px;
-  padding: 13px;
-  overflow: hidden;
-  border: 1px solid rgba(80, 245, 150, 0.18);
-  border-radius: 6px;
-  color: var(--green);
-  background: rgba(0, 0, 0, 0.36);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 .status-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -828,6 +813,28 @@ textarea:focus {
   font-weight: 950;
 }
 
+.chart-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.chart-controls button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.24);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.chart-controls button.is-active {
+  color: var(--ink);
+  background: var(--green);
+}
+
 .modal-chart {
   margin-top: 14px;
   padding: 14px;
@@ -865,6 +872,30 @@ textarea:focus {
   stroke: var(--white);
   stroke-dasharray: 5 7;
   stroke-width: 2;
+}
+
+.candle-wick {
+  stroke-width: 2;
+}
+
+.candle-body {
+  rx: 2;
+}
+
+.candle-wick.up,
+.candle-body.up {
+  fill: var(--green);
+  stroke: var(--green);
+}
+
+.candle-wick.down,
+.candle-body.down {
+  fill: #ff6b6b;
+  stroke: #ff6b6b;
+}
+
+.chart-empty {
+  fill: var(--muted);
 }
 
 .modal-content {

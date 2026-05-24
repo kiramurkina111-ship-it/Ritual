@@ -8,6 +8,7 @@
       name="description"
       content="An occult arcade launchpad for testnet tokens on Ritual Chain."
     />
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -68,7 +69,6 @@
               <svg aria-hidden="true"><use href="#ritual-mark"></use></svg>
               <span>PUMP</span>
             </div>
-            <div class="ticker-tape" id="tickerTape">awaiting omens...</div>
           </div>
         </section>
 
@@ -205,6 +205,12 @@
           <div class="modal-grid">
             <div>
               <div class="modal-art" id="modalTokenArt"></div>
+              <div class="chart-controls" id="chartControls" aria-label="Chart timeframe">
+                <button class="is-active" type="button" data-chart-frame="60">1m</button>
+                <button type="button" data-chart-frame="300">5m</button>
+                <button type="button" data-chart-frame="3600">1h</button>
+                <button type="button" data-chart-frame="86400">1d</button>
+              </div>
               <div class="modal-chart" id="modalChart"></div>
             </div>
             <div class="modal-content">
