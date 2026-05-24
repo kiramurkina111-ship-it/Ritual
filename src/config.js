@@ -1,3 +1,3 @@
 window.RITUAL_PUMPPAD_CONFIG = {
-  factoryAddress: "",
+  factoryAddress: "0x8B55474a2153706370EEe68B22046847E8AF0AF4",
 };
